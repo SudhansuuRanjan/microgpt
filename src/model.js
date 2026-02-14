@@ -1,8 +1,6 @@
 // Ported to JavaScript from Andrej Karpathy's minGPT (Python)
 // Original: https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95
-
 import random from "./random.js";
-
 
 export async function trainAndGenerate(options, log, emitName) {
   const { fileContent, temperature, numSamples, numSteps } = options;
@@ -266,17 +264,13 @@ export async function trainAndGenerate(options, log, emitName) {
       );
 
       if (token_id === BOS) break;
-
       sample.push(uchars[token_id]);
     }
 
     const name = sample.join("");
     generatedNames.push(name);
 
-    if (emitName) {
-      emitName(name);
-    }
+    if (emitName) emitName(name)
   }
-
   return generatedNames;
 }
