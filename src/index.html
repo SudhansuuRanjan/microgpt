@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Micro GPT Trainer</title>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://micro-gpt.pages.dev/" />
+  <meta property="og:title" content="Micro GPT Trainer" />
+  <meta property="og:description"
+    content="Train a miniature GPT model in your browser. Upload text or use examples to generate creative outputs like baby names." />
+  <meta property="og:image" content="/favicon.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Micro GPT Trainer</h1>
+      <p>Train a tiny GPT model in your browser</p>
+    </header>
+
+    <main>
+      <section class="controls">
+        <div class="input-group">
+          <label>Training Data Source</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="source" value="upload" checked />
+              Upload File
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="source" value="example" />
+              Select Example
+            </label>
+          </div>
+        </div>
+
+        <div id="upload-container" class="input-group">
+          <input type="file" id="fileInput" accept=".txt" />
+        </div>
+
+        <div id="example-container" class="input-group hidden">
+          <select id="exampleSelect">
+            <option value="baby-names.txt">Baby Names</option>
+            <option value="pokemon-names.txt">Pokemon Names</option>
+            <option value="indian-names.txt">Indian Names</option>
+            <option value="indian-boys-names.txt">Indian Boys Names</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>
+            File Preview (First 10 lines)
+            <span id="fileStats" class="file-stats"></span>
+          </label>
+          <pre id="filePreview" class="preview-box">No file selected...</pre>
+        </div>
+
+        <div class="settings">
+          <div class="input-group">
+            <label for="temperature">
+              Temperature
+              <span class="info-icon"
+                title="Controls randomness: Lower values (e.g., 0.1) make output more deterministic, higher values (e.g., 1.0) make it more random.">i</span>
+            </label>
+            <input id="temperature" type="number" step="0.1" value="0.5" />
+          </div>
+
+          <div class="input-group">
+            <label for="steps">
+              Training Steps
+              <span class="info-icon"
+                title="Number of training iterations. More steps usually mean better results but take longer.">i</span>
+            </label>
+            <input id="steps" type="number" value="1000" />
+          </div>
+
+          <div class="input-group">
+            <label for="samples">
+              Num Samples
+              <span class="info-icon" title="Number of names to generate after training is complete.">i</span>
+            </label>
+            <input id="samples" type="number" value="25" />
+          </div>
+        </div>
+
+        <button id="trainBtn">Train & Generate</button>
+      </section>
+
+      <div class="output-container">
+        <section class="logs-section">
+          <h3>Training Logs</h3>
+          <div id="logs" class="logs-box"></div>
+        </section>
+
+        <section class="result-section">
+          <h3>Generated Output</h3>
+          <pre id="output" class="output-box"></pre>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>
+        Ported to JavaScript from
+        <a href="https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95" target="_blank">Andrej Karpathy's
+          minGPT</a>
+        | <button id="viewSourceBtn" class="link-btn">View Source (model.js)</button> | <a href="https://github.com/SudhansuuRanjan/microgpt" target="_blank">GitHub</a>
+    </footer>
+  </div>
+
+  <div id="sourceModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>src/model.js</h3>
+        <button id="closeModalBtn" class="close-btn">&times;</button>
+      </div>
+      <pre id="sourceCode" class="code-block">Loading...</pre>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+
+</html>

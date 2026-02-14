@@ -1,0 +1,20 @@
+{
+  "name": "micro-gpt",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "start": "bun server.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "wrangler": "^4.65.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "hono": "^4.11.9"
+  }
+}
