@@ -168,7 +168,7 @@ export class MicroGPT {
     return this.linear(x, this.state_dict["lm_head"]);
   }
 
-  async train(options, log) {
+  async train(options, log, onProgress) {
     const { fileContent, numSteps } = options;
     random.seed(42);
 
@@ -253,12 +253,20 @@ export class MicroGPT {
         p.grad = 0;
       }
 
-      log(
-        `step ${String(step + 1).padStart(4)} / ${String(num_steps).padStart(4)} | loss ${loss.data.toFixed(4)}`
-      );
+      if (step % 200 === 0 || step === num_steps - 1) {
+        log(
+          `step ${step + 1}/${num_steps} | loss ${loss.data.toFixed(4)}`
+        );
+      }
 
-      if (step % 10 === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
+      if (step % 5 === 0 || step === num_steps - 1) {
+        if (onProgress) {
+          onProgress((step + 1) / numSteps);
+        }
+      }
+
+      if (step % 200 === 0) {
+        await new Promise(requestAnimationFrame);
       }
     }
   }

@@ -46,6 +46,7 @@ const generateBtn = document.getElementById("generateBtn");
 const temperatureInput = document.getElementById("temperature");
 const stepsInput = document.getElementById("steps");
 const samplesInput = document.getElementById("samples");
+const progressBar = document.getElementById("progressBar");
 
 let currentFileContent = null;
 
@@ -111,37 +112,55 @@ function updatePreview(text) {
 }
 
 worker.onmessage = (e) => {
-  const { type, message, names } = e.data;
+  const { type, message, names, value } = e.data;
 
-  if (type === "log") {
-    const p = document.createElement("div"); // Changed to div for better styling control if needed
-    p.textContent = message;
-    logsEl.appendChild(p);
-    logsEl.scrollTop = logsEl.scrollHeight;
-  } else if (type === "TRAINING_COMPLETE") {
-    isModelTrained = true;
-    trainBtn.disabled = false;
-    trainBtn.textContent = "Train Model";
-    generateBtn.disabled = false;
-    const p = document.createElement("div");
-    p.textContent = "Training complete. You can now generate names.";
-    p.style.color = "lightgreen";
-    p.style.marginTop = "5px";
-    logsEl.appendChild(p);
-    logsEl.scrollTop = logsEl.scrollHeight;
-    showNotification("Training complete. You can now generate names.", "success");
-  } else if (type === "result") {
-    outputEl.textContent = names.join("\n");
-    generateBtn.disabled = false;
-    generateBtn.textContent = "Generate Names";
-  } else if (type === "error") {
-    showNotification(`Error: ${message}`, "error");
-    trainBtn.disabled = false;
-    trainBtn.textContent = "Train Model";
-    generateBtn.disabled = false;
-    generateBtn.textContent = "Generate Names";
+  switch (type) {
+    case "log":
+      const logLine = document.createElement("div");
+      logLine.textContent = message;
+      logsEl.appendChild(logLine);
+      logsEl.scrollTop = logsEl.scrollHeight;
+      break;
+
+    case "progress":
+      const percent = Math.floor(value * 100);
+      progressBar.style.width = percent + "%";
+      if (progressText) progressText.textContent = percent + "%";
+      break;
+
+    case "TRAINING_COMPLETE":
+      isModelTrained = true;
+      trainBtn.disabled = false;
+      trainBtn.textContent = "Train Model";
+      generateBtn.disabled = false;
+      progressBar.style.width = "100%";
+      showNotification("Training complete 🚀", "success");
+
+
+      logsEl.appendChild(document.createElement("br"));
+      const logLine1 = document.createElement("div");
+      logLine1.textContent = "Training complete 🚀, Model is ready to generate names";
+      logsEl.appendChild(logLine1);
+      logsEl.scrollTop = logsEl.scrollHeight;
+
+      break;
+
+    case "result":
+      outputEl.textContent = names.join("\n");
+      generateBtn.disabled = false;
+      generateBtn.textContent = "Generate Names";
+      break;
+
+    case "error":
+      showNotification(`Error: ${message}`, "error");
+      trainBtn.disabled = false;
+      trainBtn.textContent = "Train Model";
+      generateBtn.disabled = false;
+      generateBtn.textContent = "Generate Names";
+      break;
   }
 };
+
 
 trainBtn.addEventListener("click", async (e) => {
   e.preventDefault();
@@ -149,6 +168,8 @@ trainBtn.addEventListener("click", async (e) => {
     showNotification("Please select a file or example first.", "error");
     return;
   }
+
+  progressBar.style.width = "0%";
 
   logsEl.innerHTML = "";
   outputEl.textContent = "";

@@ -8,9 +8,16 @@ self.onmessage = async (e) => {
   try {
     if (type === "TRAIN") {
       const { fileContent, numSteps } = payload;
-      await model.train({ fileContent, numSteps }, (log) => {
-        self.postMessage({ type: "log", message: log });
-      });
+      await model.train(
+        { fileContent, numSteps },
+        (log) => {
+          self.postMessage({ type: "log", message: log });
+        },
+        (progress) => {
+          self.postMessage({ type: "progress", value: progress });
+        }
+      );
+
       self.postMessage({ type: "TRAINING_COMPLETE" });
     } else if (type === "GENERATE") {
       const { temperature, numSamples } = payload;
