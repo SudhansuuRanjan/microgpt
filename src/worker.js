@@ -7,9 +7,9 @@ self.onmessage = async (e) => {
 
   try {
     if (type === "TRAIN") {
-      const { fileContent, numSteps } = payload;
+      const { fileContent, numSteps, nEmbd, nLayer } = payload;
       await model.train(
-        { fileContent, numSteps },
+        { fileContent, numSteps, nEmbd, nLayer },
         (log) => {
           self.postMessage({ type: "log", message: log });
         },

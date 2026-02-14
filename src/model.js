@@ -169,7 +169,16 @@ export class MicroGPT {
   }
 
   async train(options, log, onProgress) {
-    const { fileContent, numSteps } = options;
+    const { fileContent, numSteps, nEmbd, nLayer } = options;
+
+    // Update model configuration if provided
+    if (nEmbd) this.n_embd = nEmbd;
+    if (nLayer) this.n_layer = nLayer;
+
+    // Recalculate derived properties
+    this.head_dim = Math.floor(this.n_embd / this.n_head);
+    this.scale = 1 / this.head_dim ** 0.5;
+
     random.seed(42);
 
     const docs = fileContent

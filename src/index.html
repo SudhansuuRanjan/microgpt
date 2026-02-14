@@ -75,6 +75,24 @@
             <input id="steps" type="number" value="1000" />
           </div>
 
+          <div class="input-group">
+            <label for="nEmbd">
+              Embedding Dimension
+              <span class="info-icon"
+                title="Size of the embedding vector [n_embd] (16-32). Higher values capture more complex patterns but increase model size.">i</span>
+            </label>
+            <input id="nEmbd" type="number" value="16" min="16" max="32" />
+          </div>
+
+          <div class="input-group">
+            <label for="nLayer">
+              Layer Count (n_layer)
+              <span class="info-icon"
+                title="Number of transformer layers (1-4). More layers allow deeper reasoning but slow down training.">i</span>
+            </label>
+            <input id="nLayer" type="number" value="1" min="1" max="4" />
+          </div>
+
           <div class="input-group button-container">
             <label>&nbsp;</label> <!-- Spacer for alignment -->
             <button id="trainBtn" class="primary-btn">Train Model</button>

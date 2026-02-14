@@ -45,6 +45,8 @@ const trainBtn = document.getElementById("trainBtn");
 const generateBtn = document.getElementById("generateBtn");
 const temperatureInput = document.getElementById("temperature");
 const stepsInput = document.getElementById("steps");
+const nEmbdInput = document.getElementById("nEmbd");
+const nLayerInput = document.getElementById("nLayer");
 const samplesInput = document.getElementById("samples");
 const progressBar = document.getElementById("progressBar");
 
@@ -183,12 +185,16 @@ trainBtn.addEventListener("click", async (e) => {
   window.scrollTo(0, document.body.scrollHeight);
 
   const numSteps = parseInt(stepsInput.value);
+  const nEmbd = parseInt(nEmbdInput.value);
+  const nLayer = parseInt(nLayerInput.value);
 
   worker.postMessage({
     type: "TRAIN",
     payload: {
       fileContent: currentFileContent,
       numSteps,
+      nEmbd,
+      nLayer,
     },
   });
 });
