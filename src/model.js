@@ -2,275 +2,299 @@
 // Original: https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95
 import random from "./random.js";
 
-export async function trainAndGenerate(options, log, emitName) {
-  const { fileContent, temperature, numSamples, numSteps } = options;
+class Value {
+  constructor(data, children = [], local_grads = []) {
+    this.data = data; // scalar value of this node calculated during forward pass
+    this.grad = 0; // derivative of the loss w.r.t. this node, calculated in backward pass
+    this._c0 = children[0]; // children of this node in the computation graph
+    this._c1 = children[1];
+    this._lg0 = local_grads[0]; // local derivative of this node w.r.t. its children
+    this._lg1 = local_grads[1];
+    this._nch = children.length; // number of children (0, 1, or 2)
+    this._gen = 0;
+  }
 
-  random.seed(42);
+  add(other) {
+    if (other instanceof Value)
+      return new Value(this.data + other.data, [this, other], [1, 1]);
+    return new Value(this.data + other, [this], [1]);
+  }
 
-  const docs = fileContent
-    .trim()
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  random.shuffle(docs);
-
-  log(`Loaded ${docs.length} docs`);
-
-  // Let there be a Tokenizer to translate strings to discrete symbols and back
-  const uchars = [...new Set(docs.join(""))].sort(); // unique characters in the dataset become token ids 0..n-1
-  const char_to_id = new Map(uchars.map((ch, i) => [ch, i])); // fast character lookup
-  const BOS = uchars.length; // token id for the special Beginning of Sequence (BOS) token
-  const vocab_size = uchars.length + 1; // total number of unique tokens, +1 is for BOS
-  log(`vocab size: ${vocab_size}`);
-
-  // Let there be Autograd, to recursively apply the chain rule through a computation graph
-  let _gen = 0; // global generation counter for autograd, to help with topological sorting of the graph during backward pass
-  class Value {
-    constructor(data, children = [], local_grads = []) {
-      this.data = data; // scalar value of this node calculated during forward pass
-      this.grad = 0; // derivative of the loss w.r.t. this node, calculated in backward pass
-      this._c0 = children[0]; // children of this node in the computation graph
-      this._c1 = children[1];
-      this._lg0 = local_grads[0]; // local derivative of this node w.r.t. its children
-      this._lg1 = local_grads[1];
-      this._nch = children.length; // number of children (0, 1, or 2)
-      this._gen = 0;
-    }
-
-    add(other) {
-      if (other instanceof Value)
-        return new Value(this.data + other.data, [this, other], [1, 1]);
-      return new Value(this.data + other, [this], [1]);
-    }
-
-    mul(other) {
-      if (other instanceof Value)
-        return new Value(
-          this.data * other.data,
-          [this, other],
-          [other.data, this.data],
-        );
-      return new Value(this.data * other, [this], [other]);
-    }
-
-    pow(other) {
+  mul(other) {
+    if (other instanceof Value)
       return new Value(
-        this.data ** other,
-        [this],
-        [other * this.data ** (other - 1)],
+        this.data * other.data,
+        [this, other],
+        [other.data, this.data],
       );
-    }
-    log() {
-      return new Value(Math.log(this.data), [this], [1 / this.data]);
-    }
-    exp() {
-      const e = Math.exp(this.data);
-      return new Value(e, [this], [e]);
-    }
-    relu() {
-      return new Value(Math.max(0, this.data), [this], [+(this.data > 0)]);
-    }
-    neg() {
-      return new Value(-this.data, [this], [-1]);
-    }
-    sub(other) {
-      return this.add(other instanceof Value ? other.neg() : -other);
-    }
-    div(other) {
-      return this.mul(other instanceof Value ? other.pow(-1) : 1 / other);
-    }
-
-    backward() {
-      const gen = ++_gen;
-      const topo = [];
-      function build_topo(v) {
-        if (v._gen === gen) return;
-        v._gen = gen;
-        if (v._nch >= 1) build_topo(v._c0);
-        if (v._nch === 2) build_topo(v._c1);
-        topo.push(v);
-      }
-      build_topo(this);
-      this.grad = 1;
-      for (let i = topo.length - 1; i >= 0; --i) {
-        const v = topo[i],
-          g = v.grad;
-        if (v._nch >= 1) v._c0.grad += v._lg0 * g;
-        if (v._nch === 2) v._c1.grad += v._lg1 * g;
-      }
-    }
+    return new Value(this.data * other, [this], [other]);
   }
 
-  // Initialize the parameters, to store the knowledge of the model.
-  const n_embd = 16; // embedding dimension
-  const n_head = 4; // number of attention heads
-  const n_layer = 1; // number of layers
-  const block_size = 16; // maximum sequence length
-  const head_dim = Math.floor(n_embd / n_head); // dimension of each head
-  const scale = 1 / head_dim ** 0.5; // precomputed attention scale factor
-  const matrix = (nout, nin, std = 0.08) =>
-    Array.from({ length: nout }, () =>
-      Array.from({ length: nin }, () => new Value(random.gauss(0, std))),
+  pow(other) {
+    return new Value(
+      this.data ** other,
+      [this],
+      [other * this.data ** (other - 1)],
     );
-  const state_dict = {
-    wte: matrix(vocab_size, n_embd),
-    wpe: matrix(block_size, n_embd),
-    lm_head: matrix(vocab_size, n_embd),
-  };
-  for (let i = 0; i < n_layer; ++i) {
-    state_dict[`layer${i}.attn_wq`] = matrix(n_embd, n_embd);
-    state_dict[`layer${i}.attn_wk`] = matrix(n_embd, n_embd);
-    state_dict[`layer${i}.attn_wv`] = matrix(n_embd, n_embd);
-    state_dict[`layer${i}.attn_wo`] = matrix(n_embd, n_embd);
-    state_dict[`layer${i}.mlp_fc1`] = matrix(4 * n_embd, n_embd);
-    state_dict[`layer${i}.mlp_fc2`] = matrix(n_embd, 4 * n_embd);
   }
-  const params = Object.values(state_dict).flat(Infinity); // flatten params into a single list of Values
-  log(`num params: ${params.length}`);
-
-  // Define the model architecture: a stateless function mapping token sequence and parameters to logits over what comes next.
-  // Follow GPT-2, blessed among the GPTs, with minor differences: layernorm -> rmsnorm, no biases, GeLU -> ReLU
-  const sum = (arr) => arr.reduce((a, b) => a.add(b));
-  const zip = (a, b) => a.map((ai, i) => [ai, b[i]]);
-
-  function linear(x, w) {
-    return w.map((wo) => sum(wo.map((wi, i) => wi.mul(x[i]))));
+  log() {
+    return new Value(Math.log(this.data), [this], [1 / this.data]);
+  }
+  exp() {
+    const e = Math.exp(this.data);
+    return new Value(e, [this], [e]);
+  }
+  relu() {
+    return new Value(Math.max(0, this.data), [this], [+(this.data > 0)]);
+  }
+  neg() {
+    return new Value(-this.data, [this], [-1]);
+  }
+  sub(other) {
+    return this.add(other instanceof Value ? other.neg() : -other);
+  }
+  div(other) {
+    return this.mul(other instanceof Value ? other.pow(-1) : 1 / other);
   }
 
-  function softmax(logits) {
+  backward() {
+    let _gen = 0;
+    const gen = ++_gen;
+    const topo = [];
+    function build_topo(v) {
+      if (v._gen === gen) return;
+      v._gen = gen;
+      if (v._nch >= 1) build_topo(v._c0);
+      if (v._nch === 2) build_topo(v._c1);
+      topo.push(v);
+    }
+    build_topo(this);
+    this.grad = 1;
+    for (let i = topo.length - 1; i >= 0; --i) {
+      const v = topo[i],
+        g = v.grad;
+      if (v._nch >= 1) v._c0.grad += v._lg0 * g;
+      if (v._nch === 2) v._c1.grad += v._lg1 * g;
+    }
+  }
+}
+
+export class MicroGPT {
+  constructor() {
+    this.state_dict = null;
+    this.uchars = null;
+    this.char_to_id = null;
+    this.vocab_size = 0;
+    this.BOS = 0;
+    this.block_size = 16;
+    this.n_embd = 16;
+    this.n_head = 4;
+    this.n_layer = 1;
+    this.head_dim = Math.floor(this.n_embd / this.n_head);
+    this.scale = 1 / this.head_dim ** 0.5;
+  }
+
+  // Helpers
+  matrix(nout, nin, std = 0.08) {
+    return Array.from({ length: nout }, () =>
+      Array.from({ length: nin }, () => new Value(random.gauss(0, std)))
+    );
+  }
+
+  sum(arr) {
+    return arr.reduce((a, b) => a.add(b));
+  }
+
+  zip(a, b) {
+    return a.map((ai, i) => [ai, b[i]]);
+  }
+
+  linear(x, w) {
+    return w.map((wo) => this.sum(wo.map((wi, i) => wi.mul(x[i]))));
+  }
+
+  softmax(logits) {
     const max_val = Math.max(...logits.map((v) => v.data));
     const exps = logits.map((v) => v.sub(max_val).exp());
-    const total = sum(exps);
+    const total = this.sum(exps);
     return exps.map((e) => e.div(total));
   }
 
-  function rmsnorm(x) {
-    const ms = sum(x.map((xi) => xi.mul(xi))).mul(1 / x.length);
+  rmsnorm(x) {
+    const ms = this.sum(x.map((xi) => xi.mul(xi))).mul(1 / x.length);
     const s = ms.add(1e-5).pow(-0.5);
     return x.map((xi) => xi.mul(s));
   }
 
-  function gpt(token_id, pos_id, keys, values) {
-    const tok_emb = state_dict["wte"][token_id]; // token embedding
-    const pos_emb = state_dict["wpe"][pos_id]; // position embedding
-    let x = zip(tok_emb, pos_emb).map(([t, p]) => t.add(p)); // joint token and position embedding
-    x = rmsnorm(x);
+  gpt(token_id, pos_id, keys, values) {
+    const tok_emb = this.state_dict["wte"][token_id];
+    const pos_emb = this.state_dict["wpe"][pos_id];
+    let x = this.zip(tok_emb, pos_emb).map(([t, p]) => t.add(p));
+    x = this.rmsnorm(x);
 
-    for (let li = 0; li < n_layer; ++li) {
+    for (let li = 0; li < this.n_layer; ++li) {
       // 1) Multi-head attention block
       let x_residual = x;
-      x = rmsnorm(x);
-      const q = linear(x, state_dict[`layer${li}.attn_wq`]);
-      const k = linear(x, state_dict[`layer${li}.attn_wk`]);
-      const v = linear(x, state_dict[`layer${li}.attn_wv`]);
+      x = this.rmsnorm(x);
+      const q = this.linear(x, this.state_dict[`layer${li}.attn_wq`]);
+      const k = this.linear(x, this.state_dict[`layer${li}.attn_wk`]);
+      const v = this.linear(x, this.state_dict[`layer${li}.attn_wv`]);
       keys[li].push(k);
       values[li].push(v);
       const x_attn = [];
-      for (let h = 0; h < n_head; ++h) {
-        const hs = h * head_dim;
-        const q_h = q.slice(hs, hs + head_dim);
-        const k_h = keys[li].map((ki) => ki.slice(hs, hs + head_dim));
-        const v_h = values[li].map((vi) => vi.slice(hs, hs + head_dim));
+      for (let h = 0; h < this.n_head; ++h) {
+        const hs = h * this.head_dim;
+        const q_h = q.slice(hs, hs + this.head_dim);
+        const k_h = keys[li].map((ki) => ki.slice(hs, hs + this.head_dim));
+        const v_h = values[li].map((vi) => vi.slice(hs, hs + this.head_dim));
         const attn_logits = k_h.map((kt) =>
-          sum(zip(q_h, kt).map(([qi, ki]) => qi.mul(ki))).mul(scale),
+          this.sum(this.zip(q_h, kt).map(([qi, ki]) => qi.mul(ki))).mul(this.scale)
         );
-        const attn_weights = softmax(attn_logits);
-        for (let j = 0; j < head_dim; ++j)
-          x_attn.push(sum(attn_weights.map((aw, t) => aw.mul(v_h[t][j]))));
+        const attn_weights = this.softmax(attn_logits);
+        for (let j = 0; j < this.head_dim; ++j)
+          x_attn.push(this.sum(attn_weights.map((aw, t) => aw.mul(v_h[t][j]))));
       }
-      x = linear(x_attn, state_dict[`layer${li}.attn_wo`]);
+      x = this.linear(x_attn, this.state_dict[`layer${li}.attn_wo`]);
       x = x.map((a, i) => a.add(x_residual[i]));
       // 2) MLP block
       x_residual = x;
-      x = rmsnorm(x);
-      x = linear(x, state_dict[`layer${li}.mlp_fc1`]);
+      x = this.rmsnorm(x);
+      x = this.linear(x, this.state_dict[`layer${li}.mlp_fc1`]);
       x = x.map((xi) => xi.relu());
-      x = linear(x, state_dict[`layer${li}.mlp_fc2`]);
+      x = this.linear(x, this.state_dict[`layer${li}.mlp_fc2`]);
       x = x.map((a, i) => a.add(x_residual[i]));
     }
 
-    return linear(x, state_dict["lm_head"]);
+    return this.linear(x, this.state_dict["lm_head"]);
   }
 
-  // Let there be Adam, the blessed optimizer and its buffers
-  const learning_rate = 0.01,
-    beta1 = 0.85,
-    beta2 = 0.99,
-    eps_adam = 1e-8;
-  const m_buf = new Float64Array(params.length); // first moment buffer
-  const v_buf = new Float64Array(params.length); // second moment buffer
+  async train(options, log) {
+    const { fileContent, numSteps } = options;
+    random.seed(42);
 
-  // Repeat in sequence
-  const num_steps = numSteps;
-  for (let step = 0; step < num_steps; ++step) {
-    // Take single document, tokenize it, surround it with BOS special token on both sides
-    const doc = docs[step % docs.length];
-    const tokens = [BOS, ...Array.from(doc, (ch) => char_to_id.get(ch)), BOS];
-    const n = Math.min(block_size, tokens.length - 1);
+    const docs = fileContent
+      .trim()
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
 
-    // Forward the token sequence through the model, building up the computation graph all the way to the loss.
-    const keys = Array.from({ length: n_layer }, () => []);
-    const values = Array.from({ length: n_layer }, () => []);
-    const losses = [];
-    for (let pos_id = 0; pos_id < n; ++pos_id) {
-      const token_id = tokens[pos_id],
-        target_id = tokens[pos_id + 1];
-      const logits = gpt(token_id, pos_id, keys, values);
-      const probs = softmax(logits);
-      const loss_t = probs[target_id].log().neg();
-      losses.push(loss_t);
-    }
-    const loss = sum(losses).mul(1 / n); // final average loss over the document sequence. May yours be low.
+    random.shuffle(docs);
+    log(`Loaded ${docs.length} docs`);
 
-    // Backward the loss, calculating the gradients with respect to all model parameters.
-    loss.backward();
+    // Tokenizer
+    this.uchars = [...new Set(docs.join(""))].sort();
+    this.char_to_id = new Map(this.uchars.map((ch, i) => [ch, i]));
+    this.BOS = this.uchars.length;
+    this.vocab_size = this.uchars.length + 1;
+    log(`vocab size: ${this.vocab_size}`);
 
-    // Adam optimizer update: update the model parameters based on the corresponding gradients.
-    const lr_t = learning_rate * (1 - step / num_steps); // linear learning rate decay
-    const bc1 = 1 - beta1 ** (step + 1),
-      bc2 = 1 - beta2 ** (step + 1);
-    for (let i = 0; i < params.length; ++i) {
-      const p = params[i];
-      m_buf[i] = beta1 * m_buf[i] + (1 - beta1) * p.grad;
-      v_buf[i] = beta2 * v_buf[i] + (1 - beta2) * p.grad ** 2;
-      const m_hat = m_buf[i] / bc1;
-      const v_hat = v_buf[i] / bc2;
-      p.data -= (lr_t * m_hat) / (Math.sqrt(v_hat) + eps_adam);
-      p.grad = 0;
+    // Initialize parameters
+    this.state_dict = {
+      wte: this.matrix(this.vocab_size, this.n_embd),
+      wpe: this.matrix(this.block_size, this.n_embd),
+      lm_head: this.matrix(this.vocab_size, this.n_embd),
+    };
+
+    for (let i = 0; i < this.n_layer; ++i) {
+      this.state_dict[`layer${i}.attn_wq`] = this.matrix(this.n_embd, this.n_embd);
+      this.state_dict[`layer${i}.attn_wk`] = this.matrix(this.n_embd, this.n_embd);
+      this.state_dict[`layer${i}.attn_wv`] = this.matrix(this.n_embd, this.n_embd);
+      this.state_dict[`layer${i}.attn_wo`] = this.matrix(this.n_embd, this.n_embd);
+      this.state_dict[`layer${i}.mlp_fc1`] = this.matrix(4 * this.n_embd, this.n_embd);
+      this.state_dict[`layer${i}.mlp_fc2`] = this.matrix(this.n_embd, 4 * this.n_embd);
     }
 
-    log(
-      `step ${String(step + 1).padStart(4)} / ${String(num_steps).padStart(4)} | loss ${loss.data.toFixed(4)}`,
-    );
-  }
+    const params = Object.values(this.state_dict).flat(Infinity);
+    log(`num params: ${params.length}`);
 
-  const token_ids = Array.from({ length: vocab_size }, (_, i) => i);
-  const generatedNames = [];
+    // Optimization
+    const learning_rate = 0.01,
+      beta1 = 0.85,
+      beta2 = 0.99,
+      eps_adam = 1e-8;
+    const m_buf = new Float64Array(params.length);
+    const v_buf = new Float64Array(params.length);
 
-  for (let sample_idx = 0; sample_idx < numSamples; ++sample_idx) {
-    const keys = Array.from({ length: n_layer }, () => []);
-    const values = Array.from({ length: n_layer }, () => []);
-    let token_id = BOS;
-    const sample = [];
+    // Training Loop
+    const num_steps = numSteps;
+    for (let step = 0; step < num_steps; ++step) {
+      const doc = docs[step % docs.length];
+      const tokens = [this.BOS, ...Array.from(doc, (ch) => this.char_to_id.get(ch)), this.BOS];
+      const n = Math.min(this.block_size, tokens.length - 1);
 
-    for (let pos_id = 0; pos_id < block_size; ++pos_id) {
-      const logits = gpt(token_id, pos_id, keys, values);
-      const probs = softmax(logits.map((l) => l.div(temperature)));
+      const keys = Array.from({ length: this.n_layer }, () => []);
+      const values = Array.from({ length: this.n_layer }, () => []);
+      const losses = [];
 
-      token_id = random.choices(
-        token_ids,
-        probs.map((p) => p.data),
+      for (let pos_id = 0; pos_id < n; ++pos_id) {
+        const token_id = tokens[pos_id];
+        const target_id = tokens[pos_id + 1];
+        const logits = this.gpt(token_id, pos_id, keys, values);
+        const probs = this.softmax(logits);
+        const loss_t = probs[target_id].log().neg();
+        losses.push(loss_t);
+      }
+
+      const loss = this.sum(losses).mul(1 / n);
+      loss.backward();
+
+      // Adam Update
+      const lr_t = learning_rate * (1 - step / num_steps);
+      const bc1 = 1 - beta1 ** (step + 1);
+      const bc2 = 1 - beta2 ** (step + 1);
+
+      for (let i = 0; i < params.length; ++i) {
+        const p = params[i];
+        m_buf[i] = beta1 * m_buf[i] + (1 - beta1) * p.grad;
+        v_buf[i] = beta2 * v_buf[i] + (1 - beta2) * p.grad ** 2;
+        const m_hat = m_buf[i] / bc1;
+        const v_hat = v_buf[i] / bc2;
+        p.data -= (lr_t * m_hat) / (Math.sqrt(v_hat) + eps_adam);
+        p.grad = 0;
+      }
+
+      log(
+        `step ${String(step + 1).padStart(4)} / ${String(num_steps).padStart(4)} | loss ${loss.data.toFixed(4)}`
       );
 
-      if (token_id === BOS) break;
-      sample.push(uchars[token_id]);
+      if (step % 10 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
-
-    const name = sample.join("");
-    generatedNames.push(name);
-
-    if (emitName) emitName(name)
   }
-  return generatedNames;
+
+  generate(options, emitName) {
+    if (!this.state_dict) {
+      throw new Error("Model is not trained yet.");
+    }
+    const { temperature, numSamples } = options;
+    const token_ids = Array.from({ length: this.vocab_size }, (_, i) => i);
+    const generatedNames = [];
+
+    for (let sample_idx = 0; sample_idx < numSamples; ++sample_idx) {
+      const keys = Array.from({ length: this.n_layer }, () => []);
+      const values = Array.from({ length: this.n_layer }, () => []);
+      let token_id = this.BOS;
+      const sample = [];
+
+      for (let pos_id = 0; pos_id < this.block_size; ++pos_id) {
+        const logits = this.gpt(token_id, pos_id, keys, values);
+        const probs = this.softmax(logits.map((l) => l.div(temperature)));
+
+        token_id = random.choices(
+          token_ids,
+          probs.map((p) => p.data)
+        );
+
+        if (token_id === this.BOS) break;
+        sample.push(this.uchars[token_id]);
+      }
+
+      const name = sample.join("");
+      generatedNames.push(name);
+
+      if (emitName) emitName(name);
+    }
+    return generatedNames;
+  }
 }

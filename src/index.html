@@ -20,6 +20,7 @@
 </head>
 
 <body>
+  <div id="notification-area" class="notification-area"></div>
   <div class="container">
     <header>
       <h1>Micro GPT</h1>
@@ -48,10 +49,11 @@
 
         <div id="example-container" class="input-group hidden">
           <select id="exampleSelect">
-            <option value="baby-names.txt">Baby Names</option>
-            <option value="pokemon-names.txt">Pokemon Names</option>
+            <option value="baby-names.txt">Names</option>
+            <option value="pokemon-names.txt">Pokemons</option>
             <option value="indian-names.txt">Indian Names</option>
             <option value="indian-boys-names.txt">Indian Boys Names</option>
+            <option value="indian-girls-names.txt">Indian Girls Names</option>
           </select>
         </div>
 
@@ -63,7 +65,26 @@
           <pre id="filePreview" class="preview-box">No file selected...</pre>
         </div>
 
-        <div class="settings">
+        <div class="settings training-settings">
+          <div class="input-group">
+            <label for="steps">
+              Training Steps
+              <span class="info-icon"
+                title="Number of training iterations. More steps usually mean better results but take longer.">i</span>
+            </label>
+            <input id="steps" type="number" value="1000" />
+          </div>
+
+          <div class="input-group button-container">
+            <label>&nbsp;</label> <!-- Spacer for alignment -->
+            <button id="trainBtn" class="primary-btn">Train Model</button>
+          </div>
+        </div>
+
+        <hr class="separator" />
+
+        <div class="settings generation-settings">
+          <h3>Generation Settings</h3>
           <div class="input-group">
             <label for="temperature">
               Temperature
@@ -74,35 +95,29 @@
           </div>
 
           <div class="input-group">
-            <label for="steps">
-              Training Steps
-              <span class="info-icon"
-                title="Number of training iterations. More steps usually mean better results but take longer.">i</span>
+            <label for="samples">
+              Generation Count
+              <span class="info-icon" title="Number of names to generate.">i</span>
             </label>
-            <input id="steps" type="number" value="1000" />
+            <input id="samples" type="number" value="10" min="1" max="100" />
           </div>
 
-          <div class="input-group">
-            <label for="samples">
-              Num Samples
-              <span class="info-icon" title="Number of names to generate after training is complete.">i</span>
-            </label>
-            <input id="samples" type="number" value="25" />
+          <div class="input-group button-container">
+            <label>&nbsp;</label>
+            <button id="generateBtn" class="secondary-btn" disabled>Generate Names</button>
           </div>
         </div>
-
-        <button id="trainBtn">Train & Generate</button>
       </section>
 
       <div class="output-container">
-        <section class="logs-section">
-          <h3>Training Logs</h3>
-          <div id="logs" class="logs-box"></div>
-        </section>
-
         <section class="result-section">
           <h3>Generated Output</h3>
           <pre id="output" class="output-box"></pre>
+        </section>
+
+        <section class="logs-section">
+          <h3>Training Logs</h3>
+          <div id="logs" class="logs-box"></div>
         </section>
       </div>
     </main>
@@ -112,7 +127,8 @@
         Ported to JavaScript from
         <a href="https://gist.github.com/karpathy/8627fe009c40f57531cb18360106ce95" target="_blank">Andrej Karpathy's
           minGPT</a>
-        | <button id="viewSourceBtn" class="link-btn">View Source (model.js)</button> | <a href="https://github.com/SudhansuuRanjan/microgpt" target="_blank">GitHub</a>
+        | <button id="viewSourceBtn" class="link-btn">View Source (model.js)</button> | <a
+          href="https://github.com/SudhansuuRanjan/microgpt" target="_blank">GitHub</a>
     </footer>
   </div>
 

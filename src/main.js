@@ -1,5 +1,37 @@
 const worker = new Worker("worker.js", { type: "module" });
 
+worker.onerror = (error) => {
+  console.error("Worker error:", error);
+  showNotification("Worker failed to start: " + error.message, "error");
+  trainBtn.disabled = false;
+  trainBtn.textContent = "Train Model";
+};
+
+function showNotification(message, type = "info") {
+  const container = document.getElementById("notification-area");
+  if (!container) return; // Safety check
+
+  const notification = document.createElement("div");
+  notification.className = `notification-toast ${type}`;
+  notification.textContent = message;
+
+  container.appendChild(notification);
+
+  // Trigger reflow
+  requestAnimationFrame(() => {
+    notification.classList.add("show");
+  });
+
+  setTimeout(() => {
+    notification.classList.remove("show");
+    setTimeout(() => {
+      notification.remove();
+    }, 300);
+  }, 3000);
+}
+
+let isModelTrained = false;
+
 const fileInput = document.getElementById("fileInput");
 const exampleSelect = document.getElementById("exampleSelect");
 const uploadContainer = document.getElementById("upload-container");
@@ -10,6 +42,7 @@ const sourceRadios = document.getElementsByName("source");
 const logsEl = document.getElementById("logs");
 const outputEl = document.getElementById("output");
 const trainBtn = document.getElementById("trainBtn");
+const generateBtn = document.getElementById("generateBtn");
 const temperatureInput = document.getElementById("temperature");
 const stepsInput = document.getElementById("steps");
 const samplesInput = document.getElementById("samples");
@@ -85,38 +118,79 @@ worker.onmessage = (e) => {
     p.textContent = message;
     logsEl.appendChild(p);
     logsEl.scrollTop = logsEl.scrollHeight;
+  } else if (type === "TRAINING_COMPLETE") {
+    isModelTrained = true;
+    trainBtn.disabled = false;
+    trainBtn.textContent = "Train Model";
+    generateBtn.disabled = false;
+    const p = document.createElement("div");
+    p.textContent = "Training complete. You can now generate names.";
+    p.style.color = "lightgreen";
+    p.style.marginTop = "5px";
+    logsEl.appendChild(p);
+    logsEl.scrollTop = logsEl.scrollHeight;
+    showNotification("Training complete. You can now generate names.", "success");
   } else if (type === "result") {
     outputEl.textContent = names.join("\n");
-    trainBtn.disabled = false;
-    trainBtn.textContent = "Train & Generate";
+    generateBtn.disabled = false;
+    generateBtn.textContent = "Generate Names";
   } else if (type === "error") {
-    alert(`Error: ${message}`);
+    showNotification(`Error: ${message}`, "error");
     trainBtn.disabled = false;
-    trainBtn.textContent = "Train & Generate";
+    trainBtn.textContent = "Train Model";
+    generateBtn.disabled = false;
+    generateBtn.textContent = "Generate Names";
   }
 };
 
-trainBtn.addEventListener("click", async () => {
-  logsEl.innerHTML = "";
-  outputEl.textContent = "";
-
+trainBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
   if (!currentFileContent) {
-    alert("Please select a file or example first.");
+    showNotification("Please select a file or example first.", "error");
     return;
   }
 
+  logsEl.innerHTML = "";
+  outputEl.textContent = "";
+  isModelTrained = false; // Reset state on new training
+
   trainBtn.disabled = true;
+  generateBtn.disabled = true;
   trainBtn.textContent = "Training...";
 
-  const temperature = parseFloat(temperatureInput.value);
+  // scroll window to bottom
+  window.scrollTo(0, document.body.scrollHeight);
+
   const numSteps = parseInt(stepsInput.value);
+
+  worker.postMessage({
+    type: "TRAIN",
+    payload: {
+      fileContent: currentFileContent,
+      numSteps,
+    },
+  });
+});
+
+generateBtn.addEventListener("click", () => {
+  if (!isModelTrained) {
+    showNotification("Model is not trained yet!", "error");
+    return;
+  }
+
+  generateBtn.disabled = true;
+  generateBtn.textContent = "Generating...";
+  outputEl.textContent = "Generating...";
+
+  const temperature = parseFloat(temperatureInput.value);
   const numSamples = parseInt(samplesInput.value);
 
   worker.postMessage({
-    fileContent: currentFileContent,
-    temperature,
-    numSteps,
-    numSamples,
+    type: "GENERATE",
+    payload: {
+      temperature,
+      numSamples,
+    },
   });
 });
 

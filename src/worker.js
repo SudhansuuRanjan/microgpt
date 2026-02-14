@@ -1,26 +1,27 @@
-import { trainAndGenerate } from "./model.js";
+import { MicroGPT } from "./model.js";
+
+const model = new MicroGPT();
 
 self.onmessage = async (e) => {
-  const { fileContent, temperature, numSteps, numSamples } = e.data;
+  const { type, payload } = e.data;
 
   try {
-    const names = await trainAndGenerate(
-      {
-        fileContent,
-        temperature,
-        numSteps,
-        numSamples,
-      },
-      (log) => {
+    if (type === "TRAIN") {
+      const { fileContent, numSteps } = payload;
+      await model.train({ fileContent, numSteps }, (log) => {
         self.postMessage({ type: "log", message: log });
-      },
-      (name) => {
-        // Optional: stream generated names one by one if needed, 
-        // but currently main.js expects all at once or ignores this callback
-      }
-    );
-
-    self.postMessage({ type: "result", names });
+      });
+      self.postMessage({ type: "TRAINING_COMPLETE" });
+    } else if (type === "GENERATE") {
+      const { temperature, numSamples } = payload;
+      const names = model.generate(
+        { temperature, numSamples },
+        (name) => {
+          // Optional: stream if needed
+        }
+      );
+      self.postMessage({ type: "result", names });
+    }
   } catch (error) {
     self.postMessage({ type: "error", message: error.message });
   }

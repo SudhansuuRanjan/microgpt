@@ -3,7 +3,7 @@ import { writeFile } from "fs/promises";
 
 async function extractNames() {
   const url =
-    "https://www.in.pampers.com/pregnancy/baby-names/article/hindu-baby-names";
+    "https://www.in.pampers.com/pregnancy/baby-names/article/indian-baby-boys-names";
 
   const res = await fetch(url);
   const html = await res.text();
