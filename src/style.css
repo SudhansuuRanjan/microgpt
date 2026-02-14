@@ -211,9 +211,11 @@ button:disabled {
 
 .logs-section h3,
 .result-section h3 {
+    margin-top: 0;
     margin-bottom: 0.8rem;
     font-weight: 600;
     color: var(--accent-2);
+    line-height: 1.2;
 }
 
 /* ================= TERMINAL STYLE ================= */
