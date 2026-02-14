@@ -4,6 +4,8 @@ A browser-based implementation of a miniature GPT model, ported to Javascript fo
 
 **Live Demo:** [https://micro-gpt.sudhanshuranjan2k18.workers.dev/](https://micro-gpt.sudhanshuranjan2k18.workers.dev/)
 
+![micro_gpt](./utils/microgpt.png)
+
 ## Project Structure
 
 ```
