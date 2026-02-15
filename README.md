@@ -2,7 +2,7 @@
 
 A browser-based implementation of a miniature GPT model, ported to Javascript for browser from Andrej Karpathy's minGPT.
 
-**Live Demo:** [https://micro-gpt.sudhanshuranjan2k18.workers.dev/](https://micro-gpt.sudhanshuranjan2k18.workers.dev/)
+**Live Demo:** [https://microgpt.pages.dev](https://microgpt.pages.dev)
 
 ![micro_gpt](./utils/microgpt.png)
 
